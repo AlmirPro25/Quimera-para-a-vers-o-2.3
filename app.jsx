@@ -147,7 +147,7 @@ const apiService = {
 const AuthContext = createContext(null);
 function AuthProvider({ children }) {
     const [token, setToken] = useState(localStorage.getItem('chimera_token'));
-    const [user, setUser] = useState(null); // Assuming user data comes with login
+    const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const addToast = useToasts();
 
@@ -157,10 +157,9 @@ function AuthProvider({ children }) {
             addToast('Sessão expirada. Por favor, autentique novamente.', 'warning');
         };
         window.addEventListener('auth-error', handleAuthError);
-        // In a real app, a /me endpoint would validate token and fetch user info
         if (token) {
             try {
-                const payload = JSON.parse(atob(token.split('.')[1])); // Decode JWT payload
+                const payload = JSON.parse(atob(token.split('.')[1]));
                 setUser({ username: payload.username, role: payload.role });
             } catch (e) {
                 console.error("Invalid token format:", e);
@@ -191,7 +190,6 @@ function AuthProvider({ children }) {
 }
 const useAuth = () => useContext(AuthContext);
 
-// WebSocket Context (kept for future real-time updates)
 const WebSocketContext = createContext(null);
 function WebSocketProvider({ children }) {
     const [lastMessage, setLastMessage] = useState(null);
@@ -199,8 +197,6 @@ function WebSocketProvider({ children }) {
     const ws = useRef(null);
     useEffect(() => {
         if (token && !ws.current) {
-            // Para produção, a URL do WebSocket deve ser 'wss://' (secure WebSocket)
-            // e o token deve ser passado com segurança (e.g., via cabeçalhos ou cookie após upgrade HTTP)
             const wsUrl = `ws://localhost:8080?token=${token}&type=ui`;
             ws.current = new WebSocket(wsUrl);
             ws.current.onopen = () => console.log('Conexão WebSocket da UI estabelecida.');
@@ -224,7 +220,6 @@ function WebSocketProvider({ children }) {
 }
 const useWebSocket = () => useContext(WebSocketContext);
 
-// Generic hook for fetching data once on component mount
 function useInitialData(endpoint) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -243,7 +238,6 @@ function useInitialData(endpoint) {
     return { data, setData, loading, error };
 }
 
-// Utilitário para formatar tempo (usado em AgentRosterView)
 const timeAgo = (dateString) => {
     const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
     let interval = seconds / 31536000;
@@ -259,9 +253,6 @@ const timeAgo = (dateString) => {
     return Math.floor(seconds) + " seg atrás";
 };
 
-// --- COMPONENTES DA UI (Atualizados para v2.3) ---
-
-// NOVO: Componente Tooltip reutilizável
 function Tooltip({ children, text }) {
     return (
         <div className="tooltip-container" data-aid={`tooltip-container-${text.replace(/\s+/g, '-').slice(0,20).toLowerCase()}-${Math.random().toString(36).substring(2, 6)}`}>
@@ -347,8 +338,8 @@ function Dashboard() {
         switch(activeView) {
             case 'analytics': return <AnalyticsDashboardView data-aid="view-analytics-vA1n4" />;
             case 'cortex': return <PredictiveCortexView data-aid="view-cortex-vC5r8" />;
-            case 'agents': return <AgentRosterView data-aid="view-agents-vA2n5" />; // Keep agent view
-            case 'campaigns': return <CampaignManagementView data-aid="view-campaigns-vC3n6" />; // Keep campaign view
+            case 'agents': return <AgentRosterView data-aid="view-agents-vA2n5" />;
+            case 'campaigns': return <CampaignManagementView data-aid="view-campaigns-vC3n6" />;
             default: return <PredictiveCortexView data-aid="view-cortex-default-cD4p6" />;
         }
     };
@@ -397,7 +388,6 @@ function AnalyticsDashboardView() {
         }
     }, [initialCampaigns, selectedCampaignId]);
 
-    // Update campaigns list if a campaign update message is received
     useEffect(() => {
         if (lastMessage?.type === 'campaign-update') {
             apiService.fetchData('/campaigns').then(setCampaigns);
@@ -448,12 +438,12 @@ function AnalyticsDashboardView() {
 
 function CampaignAnalytics({ campaign }) {
     const [viewType, setViewType] = useState('sentiment');
-    const [widgetKey, setWidgetKey] = useState(Date.now()); // Forces re-render of widgets when campaign changes
+    const [widgetKey, setWidgetKey] = useState(Date.now());
     const { lastMessage } = useWebSocket();
 
     useEffect(() => {
         if (lastMessage?.type === 'mission-result' && lastMessage.payload?.campaignId === campaign.id) {
-            setWidgetKey(Date.now()); // Re-fetch data for the active widget
+            setWidgetKey(Date.now());
         }
     }, [lastMessage, campaign.id]);
 
@@ -464,8 +454,10 @@ function CampaignAnalytics({ campaign }) {
             case 'table': return <TableResultsWidget {...props} data-aid="widget-table-tW2q3"/>;
             case 'image': return <ImageGalleryWidget {...props} data-aid="widget-image-iW3r4"/>;
             case 'api': return <ApiStatusWidget {...props} data-aid="widget-api-aW4s5"/>;
-            // MODIFICATION 4: Integrate AiInsightsWidget
             case 'ai_insights': return <AiInsightsWidget {...props} data-aid="widget-aiInsights-aI5t6"/>;
+            // MODIFICATION 5: Integrate New Widgets
+            case 'browser_screenshots': return <ScreenshotGalleryWidget {...props} data-aid="widget-browserSs-wBSS5u6"/>;
+            case 'browser_html': return <HtmlViewerWidget {...props} data-aid="widget-browserHtml-wBHT7v8"/>;
             default: return <p className="text-red-400 text-center py-8" data-aid="p-invalidViewType-iVT5t6">Tipo de visualização inválido.</p>;
         }
     };
@@ -477,13 +469,15 @@ function CampaignAnalytics({ campaign }) {
                 <h2 className="text-2xl font-bold text-amber-400" data-aid="h2-campaignAnalyticsTitle-cAT8w9">{campaign.name}</h2>
                 <p className="text-[var(--text-secondary)] mt-1" data-aid="p-campaignObjective-cO9x0">{campaign.objective}</p>
             </header>
-            <nav className="flex space-x-1 bg-gray-900/50 rounded-lg p-1" data-aid="nav-analyticsType-nAT0y1">
+            <nav className="flex flex-wrap space-x-1 bg-gray-900/50 rounded-lg p-1" data-aid="nav-analyticsType-nAT0y1">
                 <button onClick={() => setViewType('sentiment')} className={`flex-1 p-2 text-sm font-semibold rounded-md transition-all duration-200 ${viewType === 'sentiment' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-700/50'}`} data-aid="btn-viewSentiment-bVS1z2">Sentimento</button>
                 <button onClick={() => setViewType('table')} className={`flex-1 p-2 text-sm font-semibold rounded-md transition-all duration-200 ${viewType === 'table' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-700/50'}`} data-aid="btn-viewTable-bVT2a3">Tabelas Extraídas</button>
                 <button onClick={() => setViewType('image')} className={`flex-1 p-2 text-sm font-semibold rounded-md transition-all duration-200 ${viewType === 'image' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-700/50'}`} data-aid="btn-viewImage-bVI3b4">Análise de Imagens</button>
                 <button onClick={() => setViewType('api')} className={`flex-1 p-2 text-sm font-semibold rounded-md transition-all duration-200 ${viewType === 'api' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-700/50'}`} data-aid="btn-viewApi-bVA4c5">Monitoramento de API</button>
-                {/* MODIFICATION 4: Add button for AI Insights */}
                 <button onClick={() => setViewType('ai_insights')} className={`flex-1 p-2 text-sm font-semibold rounded-md transition-all duration-200 ${viewType === 'ai_insights' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-700/50'}`} data-aid="btn-viewAiInsights-bAI5c6">Insights de IA</button>
+                {/* MODIFICATION 5: Add buttons for new browser widgets */}
+                <button onClick={() => setViewType('browser_screenshots')} className={`flex-1 p-2 text-sm font-semibold rounded-md transition-all duration-200 ${viewType === 'browser_screenshots' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-700/50'}`} data-aid="btn-viewBrowserSs-bBSS1s2">Screenshots Navegador</button>
+                <button onClick={() => setViewType('browser_html')} className={`flex-1 p-2 text-sm font-semibold rounded-md transition-all duration-200 ${viewType === 'browser_html' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-700/50'}`} data-aid="btn-viewBrowserHtml-bBHT3t4">HTML Capturado</button>
             </nav>
             <div className="min-h-[400px]" data-aid="div-widgetContainer-wCo5d6">
                 {renderAnalyticsWidget()}
@@ -492,7 +486,6 @@ function CampaignAnalytics({ campaign }) {
     );
 }
 
-// Widgets de Análise (Componentes de Suporte)
 function WidgetStatus({ loading, error, data, dataType, children }) {
     if (loading) { return <div className="flex flex-col items-center justify-center h-full text-gray-400 p-8 fade-in" data-aid="div-widgetLoading-wL1d1"><i className="fas fa-spinner fa-spin text-4xl text-teal-400" data-aid="i-widgetSpinner-wS2e2"></i><p className="mt-4 text-lg" data-aid="p-widgetLoadingText-wLT3f3">Processando Inteligência...</p></div>; }
     if (error) { return <div className="flex flex-col items-center justify-center h-full text-red-400 p-8 fade-in" data-aid="div-widgetError-wE4g4"><i className="fas fa-exclamation-triangle text-4xl" data-aid="i-widgetErrorIcon-wEI5h5"></i><p className="mt-4 text-lg text-center" data-aid="p-widgetErrorText-wET6i6">{error}</p></div>; }
@@ -556,7 +549,6 @@ function TableResultsWidget({ campaignId }) {
                 throw new Error("Não foi possível obter os dados completos.");
             }
 
-            // Flatten the nested structure for CSV
             const flatData = allData.data.flatMap(execution => execution.result);
             const csv = Papa.unparse(flatData);
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -567,7 +559,7 @@ function TableResultsWidget({ campaignId }) {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            URL.revokeObjectURL(url); // Clean up the URL object
+            URL.revokeObjectURL(url);
             addToast('Exportação concluída com sucesso.', 'success');
         } catch (err) {
             addToast(`Falha na exportação: ${err.message}`, 'error');
@@ -674,7 +666,6 @@ function ApiStatusWidget({ campaignId }) {
     );
 }
 
-// MODIFICATION 3: Verify/Correct AiInsightsWidget Component
 function AiInsightsWidget({ campaignId }) {
     const [insights, setInsights] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -695,9 +686,9 @@ function AiInsightsWidget({ campaignId }) {
             }
         };
         fetchAiInsights();
-        const interval = setInterval(fetchAiInsights, 20000); // Poll a cada 20 segundos
+        const interval = setInterval(fetchAiInsights, 20000);
         return () => clearInterval(interval);
-    }, [campaignId]); // Ensure campaignId is in dependency array
+    }, [campaignId]);
 
     return (
         <div data-aid="div-aiInsightsWidget-aIW0j1">
@@ -735,6 +726,82 @@ function AiInsightsWidget({ campaignId }) {
         </div>
     );
 }
+
+// MODIFICATION 3: Create ScreenshotGalleryWidget Component
+function ScreenshotGalleryWidget({ campaignId }) {
+    const { data: missions, loading, error } = useAnalyticsData(`/analytics/campaign/${campaignId}/mission-results?type=BROWSER_SCREENSHOT`);
+
+    return (
+        <div data-aid="div-screenshotGalleryWidget-sGW0k1">
+            <h3 className="text-lg font-semibold text-gray-300 mb-4" data-aid="h3-screenshotGalleryTitle-sGT2l3">Galeria de Screenshots de Navegador</h3>
+            <WidgetStatus loading={loading} error={error} data={missions} dataType="screenshots de navegador">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" data-aid="div-screenshotsGrid-sG4m5">
+                    {missions?.map((mission) => (
+                        mission.result?.screenshot_base64 ? (
+                            <figure key={mission.id} className="relative group overflow-hidden rounded-lg command-panel p-1 shadow-lg" data-aid={`fig-ss-${mission.id}`}>
+                                <img
+                                    src={`data:image/${mission.result.format || 'png'};base64,${mission.result.screenshot_base64}`}
+                                    alt={`Screenshot de ${mission.result.source_url || 'URL desconhecida'}`}
+                                    className="w-full h-auto object-contain rounded-md"
+                                />
+                                <figcaption className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 text-xs truncate" data-aid={`figcaption-ss-${mission.id}`}>
+                                    {mission.result.source_url || 'URL não disponível'} (Missão: {mission.id})
+                                </figcaption>
+                            </figure>
+                        ) : null
+                    ))}
+                </div>
+            </WidgetStatus>
+        </div>
+    );
+}
+
+// MODIFICATION 4: Create HtmlViewerWidget Component
+function HtmlViewerWidget({ campaignId }) {
+    const { data: missions, loading, error } = useAnalyticsData(`/analytics/campaign/${campaignId}/mission-results?type=BROWSER_GET_HTML`);
+    const [selectedMissionId, setSelectedMissionId] = useState(null);
+
+    const selectedMission = useMemo(() => {
+        if (!missions || !selectedMissionId) return null;
+        return missions.find(m => m.id === parseInt(selectedMissionId));
+    }, [missions, selectedMissionId]);
+
+    return (
+        <div data-aid="div-htmlViewerWidget-hVW0n2">
+            <h3 className="text-lg font-semibold text-gray-300 mb-4" data-aid="h3-htmlViewerTitle-hVT1o3">Visualizador de HTML Capturado</h3>
+            <WidgetStatus loading={loading} error={error} data={missions} dataType="HTML capturado">
+                <div className="mb-4" data-aid="div-htmlSelectContainer-hSC2p4">
+                    <label htmlFor="html-mission-select" className="block text-sm font-medium text-gray-400 mb-1" data-aid="label-htmlMissionSelect-hMS3q5">Selecione uma Missão para Visualizar HTML:</label>
+                    <select
+                        id="html-mission-select"
+                        value={selectedMissionId || ''}
+                        onChange={(e) => setSelectedMissionId(e.target.value)}
+                        className="w-full p-2 text-sm rounded-md bg-gray-800 border border-gray-700 focus:ring-2 focus:ring-amber-500 text-gray-200"
+                        data-aid="select-htmlMission-sHM4r6"
+                    >
+                        <option value="" disabled data-aid="option-htmlDefault-oHD5s7">-- Escolha uma captura --</option>
+                        {missions?.map(mission => (
+                            <option key={mission.id} value={mission.id} data-aid={`option-htmlMission-${mission.id}`}>
+                                {mission.result?.source_url || `Missão ${mission.id}`} - {new Date(mission.createdAt).toLocaleString()}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                {selectedMission && selectedMission.result?.html_content && (
+                    <div className="bg-gray-900 p-3 rounded-md border border-gray-700" data-aid="div-htmlContentContainer-hCC6t8">
+                        <h4 className="text-md font-semibold text-amber-400 mb-2" data-aid="h4-htmlSourceUrl-hSU7u9">HTML de: {selectedMission.result.source_url}</h4>
+                        <pre className="text-xs text-gray-300 whitespace-pre-wrap overflow-auto max-h-[60vh] bg-black/30 p-2 rounded" data-aid="pre-htmlContent-pHC8v0">
+                            <code>
+                                {selectedMission.result.html_content}
+                            </code>
+                        </pre>
+                    </div>
+                )}
+            </WidgetStatus>
+        </div>
+    );
+}
+
 
 function PredictiveCortexView() {
     const { data: campaigns, loading, error } = useInitialData('/campaigns');
@@ -783,7 +850,7 @@ function PredictiveCortexView() {
         stroke: { width: [3, 3], curve: 'smooth', dashArray: [0, 8] },
         xaxis: { type: 'datetime', labels: { style: { colors: 'var(--text-secondary)' } } },
         yaxis: { labels: { style: { colors: 'var(--text-secondary)' } } },
-        tooltip: { theme: 'dark' /* A estilizacao do tooltip e global */ },
+        tooltip: { theme: 'dark' },
         grid: { borderColor: 'rgba(55, 65, 81, 0.3)' },
         legend: { show: true, labels: { colors: 'var(--text-primary)'} },
         annotations: { xaxis: analysisResult?.prediction_start ? [{ x: new Date(analysisResult.prediction_start).getTime(), strokeDashArray: 2, borderColor: '#a78bfa', label: { borderColor: '#a78bfa', style: { color: '#fff', background: '#a78bfa' }, text: 'Início da Previsão' } }] : [] }
@@ -809,7 +876,6 @@ function PredictiveCortexView() {
                     <select id="cortex-model" value={modelType} onChange={e => setModelType(e.target.value)} className="w-full p-2 text-sm rounded-md bg-[var(--input-bg)] border border-[var(--input-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] text-[var(--text-primary)] transition" data-aid="select-model-sM5g9">
                         <option value="sentiment_prediction" data-aid="opt-model-sentiment-sP1a1">Previsão de Sentimento</option>
                         <option value="market_trend_analysis" data-aid="opt-model-market-mT2b2">Análise de Tendência de Mercado</option>
-                        {/* <option value="api_risk_analysis" disabled data-aid="opt-model-api-aR2b2">Análise de Risco de API (Em Treinamento)</option> */}
                     </select>
                 </div>
                 <button onClick={handleAnalysis} disabled={isAnalyzing} className="w-full bg-[var(--btn-bg)] hover:bg-[var(--btn-hover-bg)] text-white font-bold py-2 px-4 rounded-md transition-all shadow-lg hover:shadow-teal-500/50 disabled:bg-[var(--btn-disabled-bg)] disabled:cursor-wait" data-aid="btn-analyze-bA6h0">
@@ -848,7 +914,6 @@ function PredictiveCortexView() {
     );
 }
 
-// Componente: Roster de Agentes (AgentRosterView)
 function AgentRosterView() {
     const { data: agents, setData: setAgents, loading, error } = useInitialData('/agents');
     const [isImplantModalOpen, setIsImplantModalOpen] = useState(false);
@@ -932,6 +997,20 @@ function AgentRosterView() {
                 displayValue = value ? 'Acesso Tela' : 'Sem Tela';
                 colorClass = value ? 'text-green-400' : 'text-gray-500';
                 break;
+            // MODIFICATION 2: Display browser control capability
+            case 'has_browser_control':
+                iconClass = value ? 'fas fa-window-maximize' : 'fas fa-window-close'; // Updated icon
+                displayValue = value ? 'Ctrl. Navegador' : 'Sem Ctrl. Naveg.';
+                colorClass = value ? 'text-blue-400' : 'text-gray-500';
+                break;
+            case 'browser_control_details':
+                if (value && value.type) {
+                    iconClass = 'fab fa-chrome'; // Assuming puppeteer/chrome for now
+                    displayValue = `Via: ${value.type}`;
+                } else {
+                    return null; // Don't render if no details
+                }
+                break;
             default: iconClass = 'fas fa-info-circle'; break;
         }
 
@@ -975,6 +1054,7 @@ function AgentRosterView() {
                                         {agent.capabilities && agent.capabilities.gpu && <i className="fas fa-grip-lines" title="GPU" data-aid={`icon-gpu-${agent.agentId.substring(0,4)}`}></i>}
                                         {agent.capabilities && agent.capabilities.cpu_cores && <i className="fas fa-microchip" title={`CPU: ${agent.capabilities.cpu_cores} Cores`} data-aid={`icon-cpu-${agent.agentId.substring(0,4)}`}></i>}
                                         {agent.capabilities && agent.capabilities.ram_gb && <i className="fas fa-memory" title={`RAM: ${agent.capabilities.ram_gb} GB`} data-aid={`icon-ram-${agent.agentId.substring(0,4)}`}></i>}
+                                        {agent.capabilities && agent.capabilities.has_browser_control && <i className="fab fa-chrome text-blue-400" title="Controle de Navegador Ativo" data-aid={`icon-browser-${agent.agentId.substring(0,4)}`}></i>}
                                     </div>
                                 </div>
                                 <div className="text-right" data-aid={`div-agentStatus-${agent.agentId.substring(0,6)}`}>
@@ -1034,7 +1114,6 @@ function AgentRosterView() {
                                         <div key={m.id} className="bg-gray-900 p-2 rounded-md text-sm border border-gray-700" data-aid={`div-missionItem-${m.id}`}>
                                             <p data-aid={`p-missionObj-${m.id}`}><strong className="text-gray-400">Objetivo:</strong> {m.manual_objective || m.MissionTemplate?.objective || `Missão Desconhecida (ID: ${m.id})`}</p>
                                             <p data-aid={`p-missionStatus-${m.id}`}><strong className="text-gray-400">Status:</strong> <span className={`capitalize text-${m.status.toLowerCase() === 'completed' ? 'green' : m.status.toLowerCase() === 'failed' ? 'red' : 'yellow'}-400`}>{m.status.replace('_', ' ').toLowerCase()}</span> <span className="text-gray-500" data-aid={`span-missionDate-${m.id}`}>- {new Date(m.createdAt).toLocaleDateString()}</span></p>
-                                            {/* MODIFICATION 5: Add Gemini Summary for AI_INSIGHTS missions */}
                                             {m.MissionTemplate?.templateType === 'AI_INSIGHTS' && m.result?.geminiAnalysis && (
                                                 <div className="bg-gray-800 p-1 mt-2 text-xs rounded" data-aid={`div-geminiSummary-${m.id}`}>
                                                     <p className="text-teal-400 font-semibold">Gemini Summary:</p>
@@ -1054,7 +1133,6 @@ function AgentRosterView() {
     );
 }
 
-// Componente: Forja de Agente (Modal)
 function AgentImplantModal({ onClose }) {
     const [hostname, setHostname] = useState('');
     const [agentScript, setAgentScript] = useState('');
@@ -1076,7 +1154,9 @@ function AgentImplantModal({ onClose }) {
 // 1. Instale Node.js na máquina hospedeira.
 // 2. Salve este script como 'nexus-agent.js'.
 // 3. Execute usando 'node nexus-agent.js' ou use um gerenciador de processos como PM2.
-// 4. Este script é auto-suficiente e não requer dependências externas (exceto 'os', 'http', 'https', 'url' nativos do Node).
+// 4. **NOVO**: Para funcionalidades de controle de navegador, instale Puppeteer:
+//    \`npm install puppeteer\` (ou \`puppeteer-core\` se usar Chrome/Chromium existente)
+//    O agente detectará automaticamente se Puppeteer está disponível.
 //
 // Considerações de Produção para a Execução do Agente:
 // Para um ambiente de produção escalável e resiliente, a lógica de execução de tarefas
@@ -1093,6 +1173,62 @@ const os = require('os');
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
+
+// MODIFICATION 1: Add Puppeteer Requirement and Setup
+// NOVO: Requerimento para Controle de Navegador
+// Para funcionalidades de controle de navegador, o 'puppeteer' deve estar instalado no ambiente do agente.
+// Execute: npm install puppeteer
+// Ou, para usar uma instalação existente do Chrome/Chromium: npm install puppeteer-core
+let puppeteer;
+try {
+    puppeteer = require('puppeteer');
+} catch (err) {
+    log('Puppeteer não encontrado. Funcionalidades de controle de navegador estarão desabilitadas.');
+    puppeteer = null; // Garante que puppeteer é definido, mesmo que como null.
+}
+
+let browserInstance = null; // Variável global para manter a instância do browser (opcional, pode ser gerenciada por função)
+
+// Função para obter/lançar uma instância do browser
+async function getBrowserInstance(context = {}) {
+    // Por enquanto, não estamos usando o context para configurar o Puppeteer, mas poderia ser usado para proxy, user-agent etc.
+    if (browserInstance && browserInstance.isConnected()) {
+        log('Reutilizando instância existente do browser.');
+        return browserInstance;
+    }
+    if (!puppeteer) {
+        throw new Error('Puppeteer não está disponível.');
+    }
+    log('Lançando nova instância do browser com Puppeteer...');
+    try {
+        // Opções de lançamento para ambientes de servidor/CI (headless, no-sandbox)
+        // Em um desktop normal, pode-se omitir args para ver o browser.
+        browserInstance = await puppeteer.launch({
+            headless: true, // 'new' para o novo modo headless, true para o antigo. 'new' é recomendado.
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // Necessário em alguns ambientes Linux
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                // '--single-process', // Descontinuado em versões mais recentes do Chrome
+                '--disable-gpu'
+            ]
+        });
+        log('Instância do browser lançada com sucesso.');
+        browserInstance.on('disconnected', () => {
+            log('Instância do browser desconectada.');
+            browserInstance = null;
+        });
+        return browserInstance;
+    } catch (error) {
+        log(\`Erro ao lançar browser com Puppeteer: \${error.message}\`);
+        browserInstance = null; // Garante que não tentaremos usar uma instância falha
+        throw error; // Re-lança o erro para ser pego pela executeTask
+    }
+}
+// END MODIFICATION 1
 
 // --- Configuração do Agente ---
 const HIVE_URL = '${HIVE_SERVER_BASE_URL}';
@@ -1119,6 +1255,10 @@ function getSystemMetrics() {
         memoryUsage: parseFloat((1 - (freeMem / totalMem)).toFixed(4)),
         gpu: "Detected GPU (Simulated)",
         has_screen_access: true,
+        // MODIFICATION 2: Update getSystemMetrics for Browser Capability
+        has_browser_control: !!puppeteer,
+        browser_control_details: puppeteer ? { type: 'puppeteer' } : null
+        // END MODIFICATION 2
     };
 }
 
@@ -1160,6 +1300,66 @@ async function makeRequest(path, method = 'GET', data = null) {
     });
 }
 
+// MODIFICATION 3: Implement Browser Control Functions
+async function navigateToUrl(browser, url, timeout = 60000) {
+    let page = null;
+    try {
+        page = await browser.newPage();
+        log(\`Navegando para URL: \${url}\`);
+        await page.goto(url, { waitUntil: 'networkidle2', timeout });
+        log(\`Navegação para \${url} concluída.\`);
+        return { success: true, url };
+    } catch (error) {
+        log(\`Erro ao navegar para \${url}: \${error.message}\`);
+        throw error;
+    } finally {
+        if (page) await page.close();
+    }
+}
+
+async function takePageScreenshot(browser, url, options = {}, timeout = 60000) {
+    let page = null;
+    try {
+        page = await browser.newPage();
+        log(\`Preparando para capturar screenshot de: \${url}\`);
+        await page.goto(url, { waitUntil: 'networkidle2', timeout });
+
+        const ssOptions = {
+            type: options.type || 'png',
+            fullPage: options.fullPage === undefined ? false : options.fullPage,
+            encoding: 'base64',
+            ...(options.quality && options.type === 'jpeg' && { quality: parseInt(options.quality, 10) })
+        };
+
+        const imageBase64 = await page.screenshot(ssOptions);
+        log(\`Screenshot de \${url} capturado com sucesso.\`);
+        return { success: true, screenshot_base64: imageBase64, source_url: url, format: ssOptions.type };
+    } catch (error) {
+        log(\`Erro ao capturar screenshot de \${url}: \${error.message}\`);
+        throw error;
+    } finally {
+        if (page) await page.close();
+    }
+}
+
+async function getPageHtml(browser, url, timeout = 60000) {
+    let page = null;
+    try {
+        page = await browser.newPage();
+        log(\`Extraindo HTML de: \${url}\`);
+        await page.goto(url, { waitUntil: 'networkidle2', timeout });
+        const htmlContent = await page.content();
+        log(\`HTML de \${url} extraído com sucesso.\`);
+        return { success: true, html_content: htmlContent, source_url: url };
+    } catch (error) {
+        log(\`Erro ao extrair HTML de \${url}: \${error.message}\`);
+        throw error;
+    } finally {
+        if (page) await page.close();
+    }
+}
+// END MODIFICATION 3
+
 async function registerAgent() {
     log('Tentando registro na Colmeia...');
     try {
@@ -1197,42 +1397,42 @@ async function pollForTask() {
         const task = await makeRequest(\`/api/agents/\${AGENT_ID}/task\`);
         if (task) {
             log(\`Nova missão recebida: ID \${task.id}. Objetivo: \${task.manual_objective || task.objective}. Tipo: \${task.templateType}\`);
-            executeTask(task);
+            executeTask(task); // This is now async due to MODIFICATION 4
         }
     } catch (error) {
         log(\`Erro ao buscar tarefa: \${error.message}\`);
     }
 }
 
+// MODIFICATION 4: Update executeTask Function
 async function executeTask(task) {
     CURRENT_STATUS = 'EXECUTING';
     log(\`Executando missão \${task.id} (Tipo: \${task.templateType})...\`);
+    const executionTimeStart = Date.now();
 
-    const executionTime = Math.random() * 10000 + 5000;
-    await new Promise(resolve => setTimeout(resolve, executionTime));
-
-    const success = Math.random() > 0.15;
-
-    let resultPayload = {
-        status: success ? 'COMPLETED' : 'FAILED',
+    let success = false;
+    let missionSpecificResults = {};
+    let resultPayload = { // Initialize resultPayload structure here
+        status: 'FAILED', // Default to FAILED
         result: {
-            message: success ? 'Objetivo alcançado com sucesso.' : 'Falha na execução: recurso indisponível ou erro interno.',
-            executionDurationMs: executionTime,
+            message: 'Falha na execução: erro interno ou recurso indisponível.', // Default error message
+            executionDurationMs: 0,
         }
     };
 
-    if (success) {
+
+    try {
         switch (task.templateType) {
             case 'SENTIMENT_ANALYSIS':
-                resultPayload.result.sentiment = parseFloat((Math.random() * 2 - 1).toFixed(4));
-                resultPayload.result.rawData = \`Texto coletado para análise: Sentimento \${resultPayload.result.sentiment}\`;
+                missionSpecificResults.sentiment = parseFloat((Math.random() * 2 - 1).toFixed(4));
+                missionSpecificResults.rawData = \`Texto coletado para análise: Sentimento \${missionSpecificResults.sentiment}\`;
                 break;
             case 'WEB_SCRAPE':
-                resultPayload.result.extractedData = [
+                missionSpecificResults.extractedData = [
                     { "item": "Alpha", "value": Math.random().toFixed(2) },
                     { "item": "Beta", "value": Math.random().toFixed(2) }
                 ];
-                resultPayload.result.rawData = \`Dados brutos extraídos: \${JSON.stringify(resultPayload.result.extractedData)}\`;
+                missionSpecificResults.rawData = \`Dados brutos extraídos: \${JSON.stringify(missionSpecificResults.extractedData)}\`;
                 break;
             case 'IMAGE_RECOGNITION':
                 const imageUrls = [
@@ -1240,28 +1440,26 @@ async function executeTask(task) {
                     "https://cdn.pixabay.com/photo/2016/11/29/05/45/ai-1867616_960_720.jpg",
                     "https://cdn.pixabay.com/photo/2019/06/17/08/38/artificial-intelligence-4284050_960_720.jpg"
                 ];
-                resultPayload.result.imageAnalysis = {
+                missionSpecificResults.imageAnalysis = {
                     sourceUrl: imageUrls[Math.floor(Math.random() * imageUrls.length)],
                     logoFound: ["Tech Corp", "Innovate Inc.", "Data-Synergy", "QuantumLeap", "Cyber Solutions"][Math.floor(Math.random()*5)],
                     confidence: parseFloat(Math.random().toFixed(2))
                 };
-                resultPayload.result.rawData = \`Descrição da imagem: \${JSON.stringify(resultPayload.result.imageAnalysis)}\`;
+                missionSpecificResults.rawData = \`Descrição da imagem: \${JSON.stringify(missionSpecificResults.imageAnalysis)}\`;
                 break;
             case 'API_MONITORING':
-                resultPayload.result.apiResponse = {
+                missionSpecificResults.apiResponse = {
                     status: Math.random() > 0.9 ? 500 : 200,
                     time: Math.floor(Math.random() * 500) + 50
                 };
-                resultPayload.result.rawData = \`Monitoramento de API: \${JSON.stringify(resultPayload.result.apiResponse)}\`;
+                missionSpecificResults.rawData = \`Monitoramento de API: \${JSON.stringify(missionSpecificResults.apiResponse)}\`;
                 break;
             case 'DATA_PROCESSING':
-                resultPayload.result.processedRecords = Math.floor(Math.random() * 1000) + 100;
-                resultPayload.result.rawData = \`Dados processados: \${resultPayload.result.processedRecords} registros.\`;
+                missionSpecificResults.processedRecords = Math.floor(Math.random() * 1000) + 100;
+                missionSpecificResults.rawData = \`Dados processados: \${missionSpecificResults.processedRecords} registros.\`;
                 break;
-            // MODIFICATION 1: Added AI_INSIGHTS case
-            case 'AI_INSIGHTS': // NOVO: Tipo de missão para IA
-                // Para AI_INSIGHTS, o agente coleta 'dados brutos' que o backend processará com Gemini.
-                resultPayload.result.rawData = \`Relatório financeiro mensal de uma corporação fictícia:
+            case 'AI_INSIGHTS':
+                missionSpecificResults.rawData = \`Relatório financeiro mensal de uma corporação fictícia:
 Receita total: \$1,234,567
 Despesas operacionais: \$876,543
 Lucro líquido: \$358,024
@@ -1270,21 +1468,47 @@ Dados de clientes: 50.000 novos clientes no último trimestre, taxa de churn de 
 Tendências de mercado: Crescimento acelerado em IA e Machine Learning, desaceleração no setor de hardware tradicional.
 Principais Riscos: Concorrência acirrada e flutuações cambiais.
 Oportunidades: Expansão para mercados emergentes e parcerias estratégicas em nuvem.\`;
-                resultPayload.result.aiObjective = task.objective; // Passa o objetivo original para o backend processar com Gemini
+                missionSpecificResults.aiObjective = task.objective;
+                break;
+            case 'BROWSER_NAVIGATE':
+                if (!puppeteer) throw new Error('Puppeteer não disponível para BROWSER_NAVIGATE.');
+                const browserNav = await getBrowserInstance(task.context);
+                missionSpecificResults = await navigateToUrl(browserNav, task.context.url, task.context.timeout);
+                break;
+            case 'BROWSER_SCREENSHOT':
+                if (!puppeteer) throw new Error('Puppeteer não disponível para BROWSER_SCREENSHOT.');
+                const browserSs = await getBrowserInstance(task.context);
+                missionSpecificResults = await takePageScreenshot(browserSs, task.context.url, task.context.screenshotOptions, task.context.timeout);
+                break;
+            case 'BROWSER_GET_HTML':
+                if (!puppeteer) throw new Error('Puppeteer não disponível para BROWSER_GET_HTML.');
+                const browserHtml = await getBrowserInstance(task.context);
+                missionSpecificResults = await getPageHtml(browserHtml, task.context.url, task.context.timeout);
                 break;
             default:
-                resultPayload.result.genericOutput = \`Missão tipo '\${task.templateType}' concluída com sucesso.\`;
-                resultPayload.result.rawData = \`Saída genérica: \${resultPayload.result.genericOutput}\`;
+                missionSpecificResults.genericOutput = \`Missão tipo '\${task.templateType}' concluída com sucesso.\`;
+                missionSpecificResults.rawData = \`Saída genérica: \${missionSpecificResults.genericOutput}\`;
         }
-    } else {
-        resultPayload.result.errorMessage = \`Erro simulado na execução da missão \${task.id} (\${task.templateType})\`;
-        resultPayload.result.rawData = \`Erro na execução. \${resultPayload.result.errorMessage}\`;
+        success = missionSpecificResults.success !== undefined ? missionSpecificResults.success : true;
+        resultPayload.result = { ...resultPayload.result, ...missionSpecificResults };
+
+    } catch (err) {
+        log(\`Erro durante execução da missão \${task.id}: \${err.message}\`);
+        resultPayload.result.errorMessage = err.message;
+        success = false; // Explicitly set success to false on error
     }
+
+    const executionDurationMs = Date.now() - executionTimeStart;
+    resultPayload.status = success ? 'COMPLETED' : 'FAILED';
+    // Ensure message is set based on success/failure
+    resultPayload.result.message = success ? (resultPayload.result.message || 'Objetivo alcançado com sucesso.') : (resultPayload.result.errorMessage || 'Falha na execução: erro interno ou recurso indisponível.');
+    resultPayload.result.executionDurationMs = parseFloat(executionDurationMs.toFixed(0));
 
     log(\`Missão \${task.id} finalizada com status: \${resultPayload.status}\`);
     await updateTask(task.id, resultPayload);
     CURRENT_STATUS = 'IDLE';
 }
+// END MODIFICATION 4
 
 async function updateTask(taskId, resultPayload) {
     try {
@@ -1389,7 +1613,6 @@ main();
     );
 }
 
-// Componente: Gestão de Campanhas (CampaignManagementView)
 function CampaignManagementView() {
     const { data: campaigns, setData: setCampaigns, loading: campaignsLoading, error: campaignsError } = useInitialData('/campaigns');
     const { data: agents, setData: setAgents, loading: agentsLoading, error: agentsError } = useInitialData('/agents');
@@ -1473,7 +1696,6 @@ function CampaignManagementView() {
             await apiService.postData(`/campaigns/${selectedCampaignId}/templates`, templateData);
             addToast('Modelo de missão criado com sucesso!', 'success');
             setIsNewTemplateModalOpen(false);
-            // MODIFICATION 5 (Self-correction part): Re-fetch campaign details to show new template
             if (selectedCampaignId) {
                 const updatedDetails = await apiService.fetchData(`/campaigns/${selectedCampaignId}`);
                 setSelectedCampaignDetails(updatedDetails);
@@ -1605,7 +1827,7 @@ function CampaignManagementView() {
                                         selectedCampaignDetails.MissionTemplates.map(template => (
                                             <div key={template.id} className="bg-gray-900 p-3 rounded-md border border-gray-800 hover:border-violet-500 transition-all" data-aid={`div-missionTemplateItem-${template.id}`}>
                                                 <p className="font-bold text-[var(--text-primary)]" data-aid={`p-templateObj-${template.id}`}>{template.objective}</p>
-                                                <p className="text-sm text-[var(--text-secondary)] font-mono" data-aid={`p-templateType-${template.id}`}>Tipo: <span className="text-teal-300">{template.templateType.replace('_', ' ').toLowerCase()}</span></p>
+                                                <p className="text-sm text-[var(--text-secondary)] font-mono" data-aid={`p-templateType-${template.id}`}>Tipo: <span className="text-teal-300">{template.templateType.replace(/_/g, ' ').toLowerCase()}</span></p>
                                                 {template.context && (
                                                     <Fragment>
                                                         <p className="text-xs text-gray-500 mt-1" data-aid={`p-templateContextLabel-${template.id}`}>Contexto:</p>
@@ -1708,7 +1930,6 @@ function CampaignManagementView() {
     );
 }
 
-// Componente: Modal Nova Campanha
 function NewCampaignModal({ onClose, onCreate }) {
     const [name, setName] = useState('');
     const [objective, setObjective] = useState('');
@@ -1778,7 +1999,6 @@ function NewCampaignModal({ onClose, onCreate }) {
     );
 }
 
-// Componente: Modal Novo Template de Missão
 function NewMissionTemplateModal({ onClose, campaignId, onCreate }) {
     const [objective, setObjective] = useState('');
     const [templateType, setTemplateType] = useState('WEB_SCRAPE');
@@ -1843,8 +2063,11 @@ function NewMissionTemplateModal({ onClose, campaignId, onCreate }) {
                             <option value="IMAGE_RECOGNITION" data-aid="option-templateType-img-oTT6d7">Reconhecimento de Imagens</option>
                             <option value="SENTIMENT_ANALYSIS" data-aid="option-templateType-sent-oTT8e9">Análise de Sentimento</option>
                             <option value="DATA_PROCESSING" data-aid="option-templateType-data-oTT0f1">Processamento de Dados</option>
-                            {/* MODIFICATION 2: Added AI_INSIGHTS option */}
                             <option value="AI_INSIGHTS" data-aid="option-templateType-ai-oTT2g3">Insights de IA (Gemini)</option>
+                            {/* MODIFICATION 1: Add new browser mission types */}
+                            <option value="BROWSER_NAVIGATE" data-aid="option-templateType-browserNav-oBN1a2">Navegação em Browser (Ação Direta)</option>
+                            <option value="BROWSER_SCREENSHOT" data-aid="option-templateType-browserSs-oBS3b4">Screenshot de Browser (Ação Direta)</option>
+                            <option value="BROWSER_GET_HTML" data-aid="option-templateType-browserHtml-oBH5c6">Extrair HTML de Browser (Ação Direta)</option>
                         </select>
                     </div>
                     <div>
@@ -1853,7 +2076,7 @@ function NewMissionTemplateModal({ onClose, campaignId, onCreate }) {
                             id="template-context"
                             rows="3"
                             className="w-full p-2 font-mono text-sm rounded-md bg-[var(--input-bg)] border border-[var(--input-border)] focus:ring-2 focus:ring-emerald-500 text-[var(--text-primary)]"
-                            placeholder='{ "url": "https://example.com/products", "selector": ".product-price" }'
+                            placeholder='{ "url": "https://example.com", "selector": "...", "screenshotOptions": {} }' // MODIFICATION 1: Updated placeholder
                             value={context}
                             onChange={(e) => setContext(e.target.value)}
                             required
@@ -1893,7 +2116,6 @@ function NewMissionTemplateModal({ onClose, campaignId, onCreate }) {
     );
 }
 
-// --- 4. Componente Raiz da Aplicação (App) ---
 function App() {
     const { token, loading } = useAuth();
 
@@ -1914,9 +2136,6 @@ function App() {
     );
 }
 
-// --- 5. Ponto de Entrada da Aplicação (main.jsx) ---
-// ReactDOM.createRoot está disponível via CDN
-// const Chart = window.ReactApexcharts; // This was already defined globally.
 const rootElement = document.getElementById('root');
 const root = ReactDOM.createRoot(rootElement);
 
